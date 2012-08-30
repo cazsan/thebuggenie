@@ -47,6 +47,7 @@
 		const SYNTAX_HIHGLIGHTING_NO_NUMBERS = 3;
 
 		const INFOBOX_PREFIX = 'hide_infobox_';
+		const TOGGLE_PREFIX = 'toggle_';
 
 		const SETTING_ADMIN_GROUP = 'admingroup';
 		const SETTING_ALLOW_REGISTRATION = 'allowreg';
@@ -103,8 +104,8 @@
 
 		protected static $_ver_mj = 3;
 		protected static $_ver_mn = 2;
-		protected static $_ver_rev = '2';
-		protected static $_ver_name = "Ystabøhamn";
+		protected static $_ver_rev = '4-dev';
+		protected static $_ver_name = "Talks like a duck";
 		protected static $_defaultscope = null;
 		protected static $_settings = null;
 		protected static $_loadedsettings = array();
@@ -466,6 +467,23 @@
 		{
 			return self::get(self::SETTING_DEFAULT_USER_ID);
 		}
+
+		/**
+		 * Return the default user
+		 *
+		 * @return TBGUser
+		 */
+		public static function getDefaultUser()
+		{
+			try
+			{
+				return TBGContext::factory()->TBGUser((int) self::get(self::SETTING_DEFAULT_USER_ID));
+			}
+			catch (Exception $e)
+			{
+				return null;
+			}
+		}
 		
 		public static function allowRegistration()
 		{
@@ -654,6 +672,16 @@
 		public static function showInfoBox($key)
 		{
 			self::deleteSetting(self::INFOBOX_PREFIX . $key);
+		}
+
+		public static function setToggle($toggle, $state)
+		{
+			self::saveSetting(self::TOGGLE_PREFIX . $toggle, $state, 'core', TBGContext::getScope()->getID(), TBGContext::getUser()->getID());
+		}
+
+		public static function getToggle($toggle)
+		{
+			return (bool) self::get(self::TOGGLE_PREFIX . $toggle, 'core', TBGContext::getScope()->getID(), TBGContext::getUser()->getID());
 		}
 
 		public static function isPermissive()
