@@ -1152,6 +1152,25 @@
 
 							$message = $account->getMessage($email);
 							$data = ($message->getBodyPlain()) ? $message->getBodyPlain() : strip_tags($message->getBodyHTML());
+							if ($data)
+							{
+								if (mb_detect_encoding($data, 'UTF-8', true) === false) $data = utf8_encode($data);
+								$new_data = '';
+								foreach (explode("\n", $data) as $line)
+								{
+									$line = trim($line);
+									if ($line)
+									{
+										$line = preg_replace('/^(_{2,}|-{2,})$/', "<hr>", $line);
+										$new_data .= $line . "\n";
+									}
+									else
+									{
+										$new_data .= "\n";
+									}
+								}
+								$data = nl2br($new_data, false);
+							}
 
 							$matches = array();
 							preg_match(TBGTextParser::getIssueRegex(), mb_decode_mimeheader($email->subject), $matches);
