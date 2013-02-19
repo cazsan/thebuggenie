@@ -86,7 +86,7 @@
 		const SETTING_SYNTAX_HIGHLIGHT_DEFAULT_NUMBERING = 'highlight_default_numbering';
 		const SETTING_SYNTAX_HIGHLIGHT_DEFAULT_INTERVAL = 'highlight_default_interval';
 		const SETTING_TBG_NAME = 'b2_name';
-		const SETTING_TBG_TAGLINE = 'b2_tagline';
+		const SETTING_TBG_NAME_HTML = 'tbg_header_name_html';
 		const SETTING_THEME_NAME = 'theme_name';
 		const SETTING_UPLOAD_EXTENSIONS_LIST = 'upload_extensions_list';
 		const SETTING_UPLOAD_LOCAL_PATH = 'upload_localpath';
@@ -97,6 +97,7 @@
 		const SETTING_USER_TIMEZONE = 'timezone';
 		const SETTING_USER_KEYBOARD_NAVIGATION = 'keyboard_navigation';
 		const SETTING_USER_LANGUAGE = 'language';
+		const SETTING_USER_ACTIVATION_KEY = 'activation_key';
 		const SETTING_AUTH_BACKEND = 'auth_backend';
 		const SETTING_MAINTENANCE_MODE = 'offline';
 		const SETTING_MAINTENANCE_MESSAGE = 'offline_msg';
@@ -400,17 +401,19 @@
 		
 		public static function getTBGname()
 		{
-			return self::get(self::SETTING_TBG_NAME);
+			$name = self::get(self::SETTING_TBG_NAME);
+			if (!self::isHeaderHtmlFormattingAllowed()) $name = htmlspecialchars($name, ENT_COMPAT, TBGContext::getI18n()->getCharset());
+			return $name;
 		}
 	
-		public static function getTBGtagline()
-		{
-			return self::get(self::SETTING_TBG_TAGLINE);
-		}
-		
 		public static function isFrontpageProjectListVisible()
 		{
 			return (bool) self::get(self::SETTING_SHOW_PROJECTS_OVERVIEW);
+		}
+
+		public static function isHeaderHtmlFormattingAllowed()
+		{
+			return (bool) self::get(self::SETTING_TBG_NAME_HTML);
 		}
 
 		public static function isSingleProjectTracker()

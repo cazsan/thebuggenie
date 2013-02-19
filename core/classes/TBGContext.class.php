@@ -544,7 +544,7 @@
 		{
 			if (self::$_stripped_tbgpath === null)
 			{
-				self::$_stripped_tbgpath = mb_substr(self::getTBGPath(), 0, mb_strlen(self::getTBGPath()) - 1);
+				self::$_stripped_tbgpath = (TBGContext::isCLI()) ? '' : mb_substr(self::getTBGPath(), 0, mb_strlen(self::getTBGPath()) - 1);
 			}
 			return self::$_stripped_tbgpath;
 		}
@@ -592,6 +592,7 @@
 				self::$_installmode = true;
 				self::$_upgrademode = true;
 				\b2db\Core::setCachingEnabled(false);
+				TBGCache::disable();
 			}
 			elseif (!\b2db\Core::isInitialized())
 			{
@@ -769,7 +770,7 @@
 			catch (Exception $e)
 			{
 				TBGLogging::log("Something happened while setting up user: ". $e->getMessage(), 'main', TBGLogging::LEVEL_WARNING);
-				$allow_anonymous_routes = array('register', 'register1', 'register2', 'activate', 'reset_password', 'captcha', 'login', 'getBackdropPartial', 'serve', 'doLogin');
+				$allow_anonymous_routes = array('register', 'register1', 'register2', 'activate', 'reset_password', 'captcha', 'login', 'login_page', 'getBackdropPartial', 'serve', 'doLogin');
 				if (!self::isCLI() && (self::getRouting()->getCurrentRouteModule() != 'main' || !in_array(self::getRouting()->getCurrentRouteAction(), $allow_anonymous_routes)))
 				{
 					TBGContext::setMessage('login_message_err', $e->getMessage());
@@ -1663,6 +1664,20 @@
 				{
 					self::$_available_permissions['issues']['caneditissuecustomfieldsown']['details']['caneditissuecustomfields'.$cdf->getKey().'own'] = array('description' => $i18n->__('Can change custom field "%field_name%" for issues reported by the user', array('%field_name%' => $cdf->getDescription())));
 					self::$_available_permissions['issues']['caneditissuecustomfields']['details']['caneditissuecustomfields'.$cdf->getKey()] = array('description' => $i18n->__('Can change custom field "%field_name%" for any issues', array('%field_name%' => $cdf->getDescription())));
+					
+					// Set permissions for custom option types
+					if ($cdf->hasCustomOptions())
+					{
+						$options = $cdf->getOptions();
+						foreach ($options as $option)
+						{
+							self::$_available_permissions['issues']['set_datatype_' . $option->getID()] = array('description' => $i18n->__('Can change issue field to "%option_name%" for issues reported by the user', array('%option_name%' => $option->getValue())));
+						}//endforeach
+					}//endif
+				}
+				foreach (TBGDatatype::getTypes() as $type => $class)
+				{
+					self::$_available_permissions['issues']['set_datatype_'.$type] = array('description' => $i18n->__('Can change issue field "%type_name%" for issues reported by the user', array('%type_name%' => $type)));
 				}
 				self::$_available_permissions['issues']['canaddextrainformationtoissues'] = array('description' => $i18n->__('Can add/remove extra information and link issues (edition, component, release, links and files) to issues'), 'details' => array());
 				self::$_available_permissions['issues']['canaddextrainformationtoissues']['details']['canaddbuildsown'] = array('description' => $i18n->__('Can add releases / versions to list of affected versions for issues reported by the user'));
@@ -2476,7 +2491,7 @@
 			catch (TBGTemplateNotFoundException $e)
 			{
 				\b2db\Core::closeDBLink();
-				header("HTTP/1.0 404 Not Found", true, 404);
+				//header("HTTP/1.0 404 Not Found", true, 404);
 				throw $e;
 			}
 			catch (TBGActionNotFoundException $e)
@@ -2504,7 +2519,7 @@
 			catch (Exception $e)
 			{
 				\b2db\Core::closeDBLink();
-				header("HTTP/1.0 404 Not Found", true, 404);
+				//header("HTTP/1.0 404 Not Found", true, 404);
 				throw $e;
 			}
 		}
@@ -2518,12 +2533,13 @@
 				$tbg_summary['db']['queries'] = \b2db\Core::getSQLHits();
 				$tbg_summary['db']['timing'] = \b2db\Core::getSQLTiming();
 			}
-			$tbg_summary['load_time'] = ($load_time >= 1) ? round($load_time, 2) . ' seconds' : round($load_time * 1000, 1) . 'ms';
+			$tbg_summary['load_time'] = ($load_time >= 1) ? round($load_time, 2) . 's' : round($load_time * 1000, 1) . 'ms';
 			$tbg_summary['scope'] = array();
 			$scope = self::getScope();
 			$tbg_summary['scope']['id'] = $scope instanceof TBGScope ? $scope->getID() : 'unknown';
 			$tbg_summary['scope']['hostnames'] = ($scope instanceof TBGScope && \b2db\Core::isConnected()) ? implode(', ', $scope->getHostnames()) : 'unknown';
 			$tbg_summary['settings'] = TBGSettings::getAll();
+			$tbg_summary['memory'] = memory_get_usage();
 			$tbg_summary['partials'] = self::getVisitedPartials();
 			if (self::$_i18n instanceof TBGI18n) {
 				foreach (self::getI18n()->getMissingStrings() as $text) {
@@ -2569,8 +2585,22 @@
 
 		public static function getCurrentCLIusername()
 		{
-			$processUser = posix_getpwuid(posix_geteuid());
-			return $processUser['name'];
+			if(extension_loaded('posix'))
+			{
+				// Original code
+				$processUser = posix_getpwuid(posix_geteuid());
+					return $processUser['name'];
+			}
+			else
+			{
+				// Try to get CLI process owner without the POSIX extension
+				$environmentUser = getenv('USERNAME');
+				if($environmentUser === false)
+				{
+					$environmentUser = 'Unknown';
+				}
+				return $environmentUser;
+			}
 		}
 
 		public static function isDebugMode()

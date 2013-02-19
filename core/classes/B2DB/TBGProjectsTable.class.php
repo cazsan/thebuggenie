@@ -26,7 +26,7 @@
 	class TBGProjectsTable extends TBGB2DBTable 
 	{
 
-		const B2DB_TABLE_VERSION = 2;
+		const B2DB_TABLE_VERSION = 3;
 		const B2DBNAME = 'projects';
 		const ID = 'projects.id';
 		const SCOPE = 'projects.scope';
@@ -43,6 +43,7 @@
 		const CLIENT = 'projects.client';
 		const DESCRIPTION = 'projects.description';
 		const DOC_URL = 'projects.doc_url';
+		const WIKI_URL = 'projects.wiki_url';
 		const RELEASED = 'projects.isreleased';
 		const PLANNED_RELEASED = 'projects.isplannedreleased';
 		const RELEASE_DATE = 'projects.release_date';
@@ -128,7 +129,7 @@
 			$crit->addWhere(self::SCOPE, TBGContext::getScope()->getID());
 			$crit->addWhere(self::DELETED, false);
 			$crit->indexBy(self::KEY);
-			$res = $this->select($crit);
+			$res = $this->select($crit, false);
 			return $res;
 		}
 		
