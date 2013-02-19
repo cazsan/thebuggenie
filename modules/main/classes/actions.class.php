@@ -204,7 +204,7 @@
 			{
 				$issue->setProject($project);
 				$issue->clearUserWorkingOnIssue();
-				$issue->unsetAssignee();
+				$issue->clearAssignee();
 				$issue->clearOwner();
 				$issue->setPercentCompleted(0);
 				$issue->setMilestone(null);
@@ -283,7 +283,8 @@
 		public function runDashboardSave(TBGRequest $request)
 		{
 			$i18n = TBGContext::getI18n();
-			$this->login_referer = (array_key_exists('HTTP_REFERER', $_SERVER) && isset($_SERVER['HTTP_REFERER'])) ? $_SERVER['HTTP_REFERER'] : '';
+			$login_referer = (array_key_exists('HTTP_REFERER', $_SERVER) && isset($_SERVER['HTTP_REFERER'])) ? $_SERVER['HTTP_REFERER'] : '';
+			$this->login_referer = htmlentities($login_referer, ENT_COMPAT, TBGContext::getI18n()->getCharset());
 			$this->options = $request->getParameters();
 			try
 			{
@@ -320,7 +321,7 @@
 			catch (Exception $e)
 			{
 				$this->getResponse()->setHttpStatus(400);
-				return $this->renderJSON(array('error' => $i18n->__($e->getMessage()), 'referer' => $request['tbg3_referer']));
+				return $this->renderJSON(array('error' => $i18n->__($e->getMessage()), 'referer' => htmlentities($request['tbg3_referer'], ENT_COMPAT, TBGContext::getI18n()->getCharset())));
 			}
 		}
 		
@@ -567,7 +568,7 @@
 				}
 				catch (Exception $e)
 				{
-					$this->error = TBGContext::getI18n()->__("Could not validate against the OpenID provider: %message%", array('%message%' => $e->getMessage()));
+					$this->error = TBGContext::getI18n()->__("Could not validate against the OpenID provider: %message%", array('%message%' => htmlentities($e->getMessage(), ENT_COMPAT, TBGContext::getI18n()->getCharset())));
 				}
 			}
 			elseif ($request->getMethod() == TBGRequest::POST)
@@ -597,6 +598,7 @@
 								$forward_url = TBGContext::getRouting()->generate(TBGSettings::get('returnfromlogin'));
 							}
 						}
+						$forward_url = htmlentities($forward_url, ENT_COMPAT, TBGContext::getI18n()->getCharset());
 					}
 					else
 					{
@@ -608,7 +610,8 @@
 					if ($request->isAjaxCall())
 					{
 						$this->getResponse()->setHttpStatus(401);
-						return $this->renderJSON(array("error" => $i18n->__($e->getMessage())));
+						TBGLogging::log($e->getMessage(), 'openid', TBGLogging::LEVEL_WARNING_RISK);
+						return $this->renderJSON(array("error" => $i18n->__("Invalid login details")));
 					}
 					else
 					{
@@ -779,7 +782,7 @@
 			$user = TBGUsersTable::getTable()->getByUsername(str_replace('%2E', '.', $request['user']));
 			if ($user instanceof TBGUser)
 			{
-				if ($user->getHashPassword() != $request['key'])
+				if ($user->getActivationKey() != $request['key'])
 				{
 					 TBGContext::setMessage('login_message_err', TBGContext::getI18n()->__('This activation link is not valid'));
 				}
@@ -1396,13 +1399,13 @@
 					if (!$issue->canEditDescription()) return $this->renderJSON(array('issue_id' => $issue->getID(), 'changed' =>false, 'error' => TBGContext::getI18n()->__('You do not have permission to perform this action')));
 					
 					$issue->setDescription($request->getRawParameter('value'));
-					return $this->renderJSON(array('issue_id' => $issue->getID(), 'changed' =>$issue->isDescriptionChanged(), 'field' => array('id' => (int) ($issue->getDescription() != ''), 'name' => tbg_parse_text($issue->getDescription(), false, null, array('issue' => $issue, 'headers' => false))), 'description' => tbg_parse_text($issue->getDescription(), false, null, array('issue' => $issue))));
+					return $this->renderJSON(array('issue_id' => $issue->getID(), 'changed' =>$issue->isDescriptionChanged(), 'field' => array('id' => (int) ($issue->getDescription() != ''), 'name' => tbg_parse_text($issue->getDescription(), false, null, array('issue' => $issue))), 'description' => tbg_parse_text($issue->getDescription(), false, null, array('issue' => $issue))));
 					break;
 				case 'reproduction_steps':
 					if (!$issue->canEditReproductionSteps()) return $this->renderJSON(array('issue_id' => $issue->getID(), 'changed' =>false, 'error' => TBGContext::getI18n()->__('You do not have permission to perform this action')));
 					
 					$issue->setReproductionSteps($request->getRawParameter('value'));
-					return $this->renderJSON(array('issue_id' => $issue->getID(), 'changed' =>$issue->isReproductionStepsChanged(), 'field' => array('id' => (int) ($issue->getReproductionSteps() != ''), 'name' => tbg_parse_text($issue->getReproductionSteps(), false, null, array('issue' => $issue, 'headers' => false))), 'reproduction_steps' => tbg_parse_text($issue->getReproductionSteps(), false, null, array('issue' => $issue))));
+					return $this->renderJSON(array('issue_id' => $issue->getID(), 'changed' =>$issue->isReproductionStepsChanged(), 'field' => array('id' => (int) ($issue->getReproductionSteps() != ''), 'name' => tbg_parse_text($issue->getReproductionSteps(), false, null, array('issue' => $issue))), 'reproduction_steps' => tbg_parse_text($issue->getReproductionSteps(), false, null, array('issue' => $issue))));
 					break;
 				case 'title':
 					if (!$issue->canEditTitle()) return $this->renderJSON(array('issue_id' => $issue->getID(), 'changed' =>false, 'error' => TBGContext::getI18n()->__('You do not have permission to perform this action')));
@@ -1797,11 +1800,11 @@
 			{
 				case 'description':
 					$issue->revertDescription();
-					$field = array('id' => (int) ($issue->getDescription() != ''), 'name' => tbg_parse_text($issue->getDescription(), false, null, array('issue' => $issue, 'headers' => false)), 'form_value' => $issue->getDescription());
+					$field = array('id' => (int) ($issue->getDescription() != ''), 'name' => tbg_parse_text($issue->getDescription(), false, null, array('issue' => $issue)), 'form_value' => $issue->getDescription());
 					break;
 				case 'reproduction_steps':
 					$issue->revertReproduction_Steps();
-					$field = array('id' => (int) ($issue->getReproductionSteps() != ''), 'name' => tbg_parse_text($issue->getReproductionSteps(), false, null, array('issue' => $issue, 'headers' => false)), 'form_value' => $issue->getReproductionSteps());
+					$field = array('id' => (int) ($issue->getReproductionSteps() != ''), 'name' => tbg_parse_text($issue->getReproductionSteps(), false, null, array('issue' => $issue)), 'form_value' => $issue->getReproductionSteps());
 					break;
 				case 'title':
 					$issue->revertTitle();
@@ -3613,7 +3616,7 @@
 					$user = TBGUser::getByUsername(str_replace('%2E', '.', $request['user']));
 					if ($user instanceof TBGUser)
 					{
-						if ($request['reset_hash'] == $user->getHashPassword())
+						if ($request['reset_hash'] == $user->getActivationKey())
 						{
 							$password = $user->createPassword();
 							$user->changePassword($password);
@@ -3707,7 +3710,9 @@
 					header('Content-type: text/javascript');
 					foreach($itemarray['js'] as $file)
 					{
-						if(file_exists($file))
+						if (strlen($file) < 2) continue;
+						if (substr($file, -2) != 'js') continue;
+						if(file_exists($file) && strpos(realpath($file), THEBUGGENIE_PATH) !== false)
 						{
 							echo file_get_contents($file);
 						}
@@ -3718,7 +3723,9 @@
 					header('Content-type: text/css');
 					foreach($itemarray['css'] as $file)
 					{
-						if(file_exists($file))
+						if (strlen($file) < 3) continue;
+						if (substr($file, -3) != 'css') continue;
+						if(file_exists($file) && strpos(realpath($file), THEBUGGENIE_PATH) !== false)
 						{
 							echo file_get_contents($file);
 						}
