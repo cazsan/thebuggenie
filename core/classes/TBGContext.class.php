@@ -544,7 +544,7 @@
 		{
 			if (self::$_stripped_tbgpath === null)
 			{
-				self::$_stripped_tbgpath = mb_substr(self::getTBGPath(), 0, mb_strlen(self::getTBGPath()) - 1);
+				self::$_stripped_tbgpath = (TBGContext::isCLI()) ? '' : mb_substr(self::getTBGPath(), 0, mb_strlen(self::getTBGPath()) - 1);
 			}
 			return self::$_stripped_tbgpath;
 		}
@@ -1111,7 +1111,7 @@
 		/**
 		 * Returns an array of modules
 		 *
-		 * @return array
+		 * @return array|TBGModule
 		 */
 		public static function getModules()
 		{
@@ -2518,12 +2518,13 @@
 				$tbg_summary['db']['queries'] = \b2db\Core::getSQLHits();
 				$tbg_summary['db']['timing'] = \b2db\Core::getSQLTiming();
 			}
-			$tbg_summary['load_time'] = ($load_time >= 1) ? round($load_time, 2) . ' seconds' : round($load_time * 1000, 1) . 'ms';
+			$tbg_summary['load_time'] = ($load_time >= 1) ? round($load_time, 2) . 's' : round($load_time * 1000, 1) . 'ms';
 			$tbg_summary['scope'] = array();
 			$scope = self::getScope();
 			$tbg_summary['scope']['id'] = $scope instanceof TBGScope ? $scope->getID() : 'unknown';
 			$tbg_summary['scope']['hostnames'] = ($scope instanceof TBGScope && \b2db\Core::isConnected()) ? implode(', ', $scope->getHostnames()) : 'unknown';
 			$tbg_summary['settings'] = TBGSettings::getAll();
+			$tbg_summary['memory'] = memory_get_usage();
 			$tbg_summary['partials'] = self::getVisitedPartials();
 			if (self::$_i18n instanceof TBGI18n) {
 				foreach (self::getI18n()->getMissingStrings() as $text) {

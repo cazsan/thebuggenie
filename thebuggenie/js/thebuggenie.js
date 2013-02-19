@@ -696,7 +696,7 @@ TBG.Main.Helpers.MarkitUp = function(element) {
 			{name:'Numeric list', openWith:'(!(# |!|#)!)'},
 			{separator:'---------------'},
 			{name:'Picture', key:"P", replaceWith:'[[Image:[![Url:!:http://]!]|[![name]!]]]'},
-			{name:'Link', key:"L", openWith:"[[![Link]!] ", closeWith:']', placeHolder:'Your text to link here...'},
+			{name:'Link', key:"L", openWith:"[[[![Link]!]|", closeWith:']]', placeHolder:'Your text to link here...'},
 			{name:'Url', openWith:"[[![Url:!:http://]!] ", closeWith:']', placeHolder:'Your text to link here...'},
 			{separator:'---------------'},
 			{name:'Quotes', openWith:'(!(> |!|>)!)', placeHolder:''},
@@ -2242,7 +2242,7 @@ TBG.Config.Issuefields.Options.update = function(url, type, id) {
 		form: 'edit_' + type + '_' + id + '_form',
 		loading: {indicator: 'edit_' + type + '_' + id + '_indicator'},
 		success: {
-			show: 'item_option_' + type + '_' + id,
+			show: 'item_option_' + type + '_' + id + '_content',
 			hide: 'edit_item_option_' + id,
 			callback: function(json) {
 				$(type + '_' + id + '_name').update($(type + '_' + id + '_name_input').getValue());

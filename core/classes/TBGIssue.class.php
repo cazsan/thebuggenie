@@ -498,6 +498,12 @@
 
 		protected $_custom_populated = false;
 
+		protected $_can_permission_cache = array();
+
+		protected $_editable;
+
+		protected $_updateable;
+
 		/**
 		 * All custom data type properties
 		 *
@@ -638,19 +644,32 @@
 		public static function findIssues($filters = array(), $results_per_page = 30, $offset = 0, $groupby = null, $grouporder = null)
 		{
 			$issues = array();
-			list ($res, $count) = TBGIssuesTable::getTable()->findIssues($filters, $results_per_page, $offset, $groupby, $grouporder);
-			if ($res)
+			list ($rows, $count, $ids) = TBGIssuesTable::getTable()->findIssues($filters, $results_per_page, $offset, $groupby, $grouporder);
+			if ($rows)
 			{
-				while ($row = $res->getNextRow())
+				TBGIssueCustomFieldsTable::getTable()->preloadValuesByIssueIDs($ids);
+				TBGIssueAffectsBuildTable::getTable()->preloadValuesByIssueIDs($ids);
+				TBGIssueAffectsEditionTable::getTable()->preloadValuesByIssueIDs($ids);
+				TBGIssueAffectsComponentTable::getTable()->preloadValuesByIssueIDs($ids);
+				TBGCommentsTable::getTable()->preloadIssueCommentCounts($ids);
+				TBGIssueFilesTable::getTable()->preloadIssueFileCounts($ids);
+				foreach ($rows as $key => $row)
 				{
 					try
 					{
 						$issue = TBGContext::factory()->TBGIssue($row->get(TBGIssuesTable::ID), $row);
 						if (!$issue->hasAccess() || $issue->getProject()->isDeleted()) continue;
 						$issues[] = $issue;
+						unset($rows[$key]);
 					}
 					catch (Exception $e) {}
 				}
+				TBGIssueCustomFieldsTable::getTable()->clearPreloadedValues();
+				TBGIssueAffectsBuildTable::getTable()->clearPreloadedValues();
+				TBGIssueAffectsEditionTable::getTable()->clearPreloadedValues();
+				TBGIssueAffectsComponentTable::getTable()->clearPreloadedValues();
+				TBGCommentsTable::getTable()->clearPreloadedIssueCommentCounts();
+				TBGIssueFilesTable::getTable()->clearPreloadedIssueFileCounts();
 			}
 			return array($issues, $count);
 		}
@@ -678,6 +697,8 @@
 		{
 			$this->_initializeCustomfields();
 			$this->_mergeChangedProperties();
+			$this->_num_user_comments = TBGCommentsTable::getTable()->getPreloadedIssueCommentCount($this->_id);
+			$this->_num_files = TBGIssueFilesTable::getTable()->getPreloadedIssueFileCount($this->_id);
 //			if ($this->isDeleted())
 //			{
 //				throw new Exception(TBGContext::geti18n()->__('This issue has been deleted'));
@@ -823,9 +844,9 @@
 				$var_name = "_customfield".$key;
 				$this->$var_name = null;
 			}
-			if ($res = TBGIssueCustomFieldsTable::getTable()->getAllValuesByIssueID($this->getID()))
+			if ($rows = TBGIssueCustomFieldsTable::getTable()->getAllValuesByIssueID($this->getID()))
 			{
-				while ($row = $res->getNextRow())
+				foreach ($rows as $row)
 				{
 					$datatype = new TBGCustomDatatype($row->get(TBGIssueCustomFieldsTable::CUSTOMFIELDS_ID));
 					$var_name = "_customfield".$datatype->getKey();
@@ -863,7 +884,7 @@
 		
 				if ($res = TBGIssueAffectsEditionTable::getTable()->getByIssueID($this->getID()))
 				{
-					while ($row = $res->getNextRow())
+					foreach($res as $row)
 					{
 						try
 						{
@@ -879,7 +900,7 @@
 				
 				if ($res = TBGIssueAffectsBuildTable::getTable()->getByIssueID($this->getID()))
 				{
-					while ($row = $res->getNextRow())
+					foreach($res as $row)
 					{
 						try
 						{
@@ -895,7 +916,7 @@
 				
 				if ($res = TBGIssueAffectsComponentTable::getTable()->getByIssueID($this->getID()))
 				{
-					while ($row = $res->getNextRow())
+					foreach($res as $row)
 					{
 						try
 						{
@@ -1037,14 +1058,22 @@
 
 		public function isEditable()
 		{
-			if ($this->getProject()->isArchived()) return false;
-			return ($this->isOpen() && ($this->getProject()->canChangeIssuesWithoutWorkingOnThem() || ($this->getWorkflowStep() instanceof TBGWorkflowStep && $this->getWorkflowStep()->isEditable())));
+			if ($this->_editable !== null) return $this->_editable;
+
+			if ($this->getProject()->isArchived()) $this->_editable = false;
+			else $this->_editable = ($this->isOpen() && ($this->getProject()->canChangeIssuesWithoutWorkingOnThem() || ($this->getWorkflowStep() instanceof TBGWorkflowStep && $this->getWorkflowStep()->isEditable())));
+
+			return $this->_editable;
 		}
 		
 		public function isUpdateable()
 		{
-			if ($this->getProject()->isArchived()) return false;
-			return ($this->isOpen() && ($this->getProject()->canChangeIssuesWithoutWorkingOnThem() || !($this->getWorkflowStep() instanceof TBGWorkflowStep) || !$this->getWorkflowStep()->isClosed()));
+			if ($this->_updateable !== null) return $this->_updateable;
+
+			if ($this->getProject()->isArchived()) $this->_updateable = false;
+			else $this->_updateable = ($this->isOpen() && ($this->getProject()->canChangeIssuesWithoutWorkingOnThem() || !($this->getWorkflowStep() instanceof TBGWorkflowStep) || !$this->getWorkflowStep()->isClosed()));
+
+			return $this->_updateable;
 		}
 		
 		/**
@@ -1060,9 +1089,11 @@
 		protected function _permissionCheck($key, $exclusive = false)
 		{
 			if (TBGContext::getUser()->isGuest()) return false;
+			if (isset($this->_can_permission_cache[$key])) return $this->_can_permission_cache[$key];
 			$retval = ($this->isInvolved() && !$exclusive) ? $this->getProject()->permissionCheck($key.'own', true) : null;
 			$retval = ($retval !== null) ? $retval : $this->getProject()->permissionCheck($key, !$this->isInvolved());
 
+			$this->_can_permission_cache[$key] = $retval;
 			return $retval;
 		}
 
@@ -1095,11 +1126,16 @@
 		 */
 		public function canEditIssueDetails()
 		{
+			static $retval = null;
+			if ($retval !== null) return $retval;
+
 			$retval = $this->_permissionCheck('caneditissuebasic');
 			$retval = ($retval === null) ? ($this->isInvolved() || $this->_permissionCheck('cancreateandeditissues')) : $retval;
 			$retval = ($retval === null) ? $this->_permissionCheck('caneditissue', true) : $retval;
 
-			return ($retval !== null) ? $retval : TBGSettings::isPermissive();
+			$retval = ($retval !== null) ? $retval : TBGSettings::isPermissive();
+
+			return $retval;
 		}
 		
 		/**
@@ -1173,17 +1209,18 @@
 		
 		protected function _canPermissionOrEditIssue($permission, $fallback = null)
 		{
+			if (isset($this->_can_permission_cache[$permission])) return $this->_can_permission_cache[$permission];
+			
 			$retval = $this->_permissionCheck($permission);
 			$retval = ($retval === null) ? $this->canEditIssue() : $retval;
 			
-			if ($retval !== null)
+			if ($retval === null)
 			{
-				return $retval;
+				$retval = ($fallback !== null) ? $fallback : TBGSettings::isPermissive();
 			}
-			else
-			{
-				return ($fallback !== null) ? $fallback : TBGSettings::isPermissive();
-			}
+
+			$this->_can_permission_cache[$permission] = $retval;
+			return $retval;
 		}
 		
 		/**
@@ -1343,11 +1380,15 @@
 		 */
 		public function canCloseIssue()
 		{
+			static $retval = null;
+			if ($retval !== null) return $retval;
+
 			$retval = $this->_permissionCheck('cancloseissues');
 			$retval = ($retval === null) ? $this->_permissionCheck('canclosereopenissues') : $retval;
 			$retval = ($retval === null) ? $this->canEditIssue() : $retval;
-			
-			return ($retval !== null) ? $retval : TBGSettings::isPermissive();
+			$retval = ($retval !== null) ? $retval : TBGSettings::isPermissive();
+
+			return $retval;
 		}
 
 		/**
@@ -1357,11 +1398,15 @@
 		 */
 		public function canReopenIssue()
 		{
+			static $retval = null;
+			if ($retval !== null) return $retval;
+
 			$retval = $this->_permissionCheck('canreopenissues');
 			$retval = ($retval === null) ? $this->_permissionCheck('canclosereopenissues') : $retval;
 			$retval = ($retval === null) ? $this->canEditIssue() : $retval;
-			
-			return ($retval !== null) ? $retval : TBGSettings::isPermissive();
+			$retval = ($retval !== null) ? $retval : TBGSettings::isPermissive();
+
+			return $retval;
 		}
 
 		protected function _dualPermissionsCheck($permission_1, $permission_2)
@@ -1384,9 +1429,11 @@
 
 		protected function _canPermissionsOrExtraInformation($permission)
 		{
+			if (isset($this->_can_permission_cache[$permission])) return $this->_can_permission_cache[$permission];
 			$retval = $this->_permissionCheck($permission);
 			$retval = ($retval === null) ? $this->canAddExtraInformation() : $retval;
-			
+
+			$this->_can_permission_cache[$permission] = $retval;
 			return ($retval !== null) ? $retval : TBGSettings::isPermissive();
 		}
 		
@@ -1397,7 +1444,12 @@
 		 */
 		public function canPostComments()
 		{
-			return $this->_dualPermissionsCheck('canpostcomments', 'canpostandeditcomments');
+			static $retval = null;
+			if ($retval !== null) return $retval;
+
+			$retval = $this->_dualPermissionsCheck('canpostcomments', 'canpostandeditcomments');
+
+			return $retval;
 		}
 
 		/**
@@ -1746,7 +1798,7 @@
 		 */
 		public function attachLink($url, $description = null)
 		{
-			$link_id = \b2db\Core::getTable('TBGLinksTable')->addLinkToIssue($this->getID(), $url, $description);
+			$link_id = TBGLinksTable::getTable()->addLinkToIssue($this->getID(), $url, $description);
 			return $link_id;
 		}
 
