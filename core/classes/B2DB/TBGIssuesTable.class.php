@@ -291,10 +291,17 @@
 			$crit = $this->getCriteria();
 			$crit->addWhere(self::DELETED, false);
 			$crit->addWhere(self::SCOPE, TBGContext::getScope()->getID());
-			$row = $this->doSelectById($id, $crit, false);
-			return $row;
+			return $this->doSelectById($id, $crit);
 		}
 		
+		public function getIssueByID($id)
+		{
+			$crit = $this->getCriteria();
+			$crit->addWhere(self::DELETED, false);
+			$crit->addWhere(self::SCOPE, TBGContext::getScope()->getID());
+			return $this->selectById($id, $crit);
+		}
+
 		public function getCountByProjectID($project_id)
 		{
 			$crit = $this->getCriteria();
@@ -322,7 +329,7 @@
 			$crit->addWhere(TBGProjectsTable::PREFIX, mb_strtolower($prefix), Criteria::DB_EQUALS, '', '', Criteria::DB_LOWER);
 			$crit->addWhere(TBGProjectsTable::DELETED, false);
 			$crit->addWhere(self::ISSUE_NO, $issue_no);
-			return $this->selectOne($crit);
+			return $this->selectOne($crit, false);
 		}
 
 		public function getByProjectIDAndIssueNo($project_id, $issue_no)
@@ -331,7 +338,7 @@
 			$crit->addWhere(self::DELETED, false);
 			$crit->addWhere(self::PROJECT_ID, $project_id);
 			$crit->addWhere(self::ISSUE_NO, $issue_no);
-			return $this->selectOne($crit);
+			return $this->selectOne($crit, false);
 		}
 
 		public function setDuplicate($issue_id, $duplicate_of)
@@ -778,24 +785,32 @@
 				$res = $this->doSelect($crit, 'none');
 				$ids = array();
 
-				while ($row = $res->getNextRow())
+				if ($res)
 				{
-					$ids[] = $row->get(self::ID);
+					while ($row = $res->getNextRow())
+					{
+						$ids[] = $row->get(self::ID);
+					}
+					$ids = array_reverse($ids);
+					$crit2 = $this->getCriteria();
+					$crit2->addWhere(self::ID, $ids, Criteria::DB_IN);
+					$crit2->addOrderBy(self::ID, $ids);
+
+					$res = $this->doSelect($crit2);
+					$rows = $res->getAllRows();
+				}
+				else
+				{
+					$rows = array();
 				}
 				
-				$ids = array_reverse($ids);
+				unset($res);
 				
-				$crit2 = $this->getCriteria();
-				$crit2->addWhere(self::ID, $ids, Criteria::DB_IN);
-				$crit2->addOrderBy(self::ID, $ids);
-				
-				$res = $this->doSelect($crit2);
-				
-				return array($res, $count);
+				return array($rows, $count, $ids);
 			}
 			else
 			{
-				return array(null, 0);
+				return array(null, 0, array());
 			}
 
 		}

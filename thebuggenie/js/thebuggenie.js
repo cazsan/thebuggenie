@@ -1011,6 +1011,14 @@ TBG.Main.Dashboard.save = function(url)
 	});
 }
 
+TBG.Main.Dashboard.sidebar = function (url, id)
+{
+	TBG.Main.setToggleState(url, !$(id).hasClassName('collapsed'));
+	$(id).toggleClassName('collapsed');
+	TBG.Core._resizeWatcher();
+	TBG.Core._scrollWatcher();
+}
+
 TBG.Main.Profile.setState = function(url, ind) {
 	TBG.Main.Helpers.ajax(url, {
 		loading: {indicator: ind},
@@ -1063,7 +1071,7 @@ TBG.Main.hideInfobox = function(url, boxkey) {
 	$('infobox_' + boxkey).fade({duration: 0.3});
 };
 
-TBG.Main.setToogleState = function (url, state) {
+TBG.Main.setToggleState = function (url, state) {
 	url += '/' + (state ? '1' : 0);
 	TBG.Main.Helpers.ajax(url, {});
 }
@@ -2234,7 +2242,7 @@ TBG.Config.Issuefields.Options.update = function(url, type, id) {
 		form: 'edit_' + type + '_' + id + '_form',
 		loading: {indicator: 'edit_' + type + '_' + id + '_indicator'},
 		success: {
-			show: 'item_option_' + type + '_' + id,
+			show: 'item_option_' + type + '_' + id + '_content',
 			hide: 'edit_item_option_' + id,
 			callback: function(json) {
 				$(type + '_' + id + '_name').update($(type + '_' + id + '_name_input').getValue());
@@ -2880,6 +2888,19 @@ TBG.Issues.showWorkflowTransition = function(transition_id) {
 			
 	}});
 };
+
+TBG.Issues.showLog = function(url) {
+	TBG.Main.Helpers.tabSwitcher('tab_log', 'viewissue_menu');
+	if ($('viewissue_log_items').childElements().size() == 0) {
+		TBG.Main.Helpers.ajax(url, {
+			url_method: 'get',
+			loading: {indicator: 'viewissue_log_loading_indicator'},
+			success: {
+				update: {element: 'viewissue_log_items'}
+			}
+		});
+	}
+}
 
 TBG.Issues.refreshRelatedIssues = function(url) {
 	if ($('related_child_issues_inline')) {
@@ -4132,8 +4153,6 @@ TBG.Chart.burndownChart = function(burndown_data, time) {
 	}
 	var d_e_velocity_hours = [[eh_keys.min() * 1000, eh_values.max()], [eh_keys.max() * 1000, 0]];
 	var d_e_velocity_points = [[ep_keys.min() * 1000, ep_values.max()], [ep_keys.max() * 1000, 0]];
-	console.log(d_e_velocity_points);
-	console.log(d_b_hours);
 		var x_config = TBG.Chart.config.x_config;
 		x_config.mode = 'time';
 		var grid_config = TBG.Chart.config.grid_config;

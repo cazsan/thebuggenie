@@ -248,7 +248,14 @@
 			{
 				$hostprefix = (!array_key_exists('HTTPS', $_SERVER) || $_SERVER['HTTPS'] == '' || $_SERVER['HTTPS'] == 'off') ? 'http' : 'https';
 				$this->_is_secure = (bool) ($hostprefix == 'https');
-				$this->_hostname = "{$hostprefix}://{$_SERVER['SERVER_NAME']}";
+				if(isset($_SERVER["HTTP_X_FORWARDED_HOST"]) && $_SERVER["HTTP_X_FORWARDED_HOST"]!="")
+				{
+				   $this->_hostname = "{$hostprefix}://{$_SERVER["HTTP_X_FORWARDED_HOST"]}";
+				}
+				else
+				{
+					$this->_hostname = "{$hostprefix}://{$_SERVER['SERVER_NAME']}";
+				}
 				$port = $_SERVER['SERVER_PORT'];
 				if ($port != 80)
 				{
@@ -264,12 +271,18 @@
 
 		public function getCurrentHostname($clean = false)
 		{
-			if ($clean)
-			{
-				$url = parse_url($this->_hostname);
-				return $url['host'];
-			}
-			return $this->_hostname;
+                        if ($clean)
+                        {
+                                // a scheme is needed before php 5.4.7
+                                // thus, let's add the prefix http://
+                                if (!stristr($this->_hostname,'http')) {
+                                        $url = parse_url('http://'.$this->_hostname);
+                                } else {
+                                        $url = parse_url($this->_hostname);
+                                }
+                                return $url['host'];
+                        }
+                        return $this->_hostname;
 		}
 		
 		public function loadFixtures()
